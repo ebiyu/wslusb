@@ -1,4 +1,4 @@
-module github.com/ebiyu/usbipd-tui
+module github.com/ebiyu/wslusb
 
 go 1.22
 
