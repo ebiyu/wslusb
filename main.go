@@ -48,14 +48,15 @@ func main() {
 		}
 
 		attachedItems := []usbipd.Device{}
-		for _, v := range items {
-			if v.Status == usbipd.Attached {
-				attachedItems = append(attachedItems, v)
-			}
-		}
 		detachedItems := []usbipd.Device{}
 		for _, v := range items {
-			if v.Status != usbipd.Attached {
+			if v.BusID == "" {
+				// Not connected now
+				continue
+			}
+			if v.Status == usbipd.Attached {
+				attachedItems = append(attachedItems, v)
+			} else {
 				detachedItems = append(detachedItems, v)
 			}
 		}

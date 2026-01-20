@@ -1,9 +1,8 @@
 package usbipd
 
 import (
-	"fmt"
+	"encoding/json"
 	"os/exec"
-	"strings"
 )
 
 const (
@@ -19,55 +18,53 @@ type Device struct {
 	Status     int
 }
 
+type usbipdStatusOutput struct {
+	Devices []usbipdDevice `json:"Devices"`
+}
+
+type usbipdDevice struct {
+	BusId           *string `json:"BusId"`
+	ClientIPAddress *string `json:"ClientIPAddress"`
+	Description     string  `json:"Description"`
+	InstanceId      string  `json:"InstanceId"`
+	IsForced        bool    `json:"IsForced"`
+	PersistedGuid   *string `json:"PersistedGuid"`
+	StubInstanceId  *string `json:"StubInstanceId"`
+}
+
+func (d *usbipdDevice) GetStatus() int {
+	if d.ClientIPAddress != nil {
+		return Attached
+	}
+	if d.PersistedGuid != nil || d.IsForced {
+		return Shared
+	}
+	return NotShared
+}
+
 func GetDevices() ([]Device, error) {
-	cmd := exec.Command("usbipd.exe", "list")
+	cmd := exec.Command("usbipd.exe", "state")
 	output, err := cmd.Output()
 	if err != nil {
 		return []Device{}, err
 	}
 
-	// make output list
-	strOutput := string(output)
-	strOutputList := strings.Split(strOutput, "\n")
-	for i, v := range strOutputList {
-		strOutputList[i] = strings.TrimSpace(v)
-	}
-
-	// Parse the output
-	begnRow := -1
-	endRow := -1
-
-	for i, v := range strOutputList {
-		if v == "Connected:" {
-			begnRow = i + 2
-		}
-		if v == "Persisted:" {
-			endRow = i
-		}
-	}
-	if begnRow == -1 || endRow == -1 {
-		return []Device{}, fmt.Errorf("Could not find the beginning or end of the device list")
+	var statusOutput usbipdStatusOutput
+	if err := json.Unmarshal(output, &statusOutput); err != nil {
+		return []Device{}, err
 	}
 
 	items := []Device{}
-	for _, v := range strOutputList[begnRow:endRow] {
-		cols := strings.Fields(v)
-		if len(cols) < 3 {
-			continue
+	for _, d := range statusOutput.Devices {
+		busId := ""
+		if d.BusId != nil {
+			busId = *d.BusId
 		}
-		busid, device, remainder := cols[0], cols[1], cols[2:]
-		status := NotShared
-		if remainder[len(remainder)-1] == "Shared" {
-			status = Shared
-		} else if remainder[len(remainder)-1] == "Attached" {
-			status = Attached
-		}
-		deviceName := strings.Join(remainder[:len(remainder)-1], " ")
 		items = append(items, Device{
-			BusID:      busid,
-			DeviceID:   device,
-			DeviceName: deviceName,
-			Status:     status,
+			BusID:      busId,
+			DeviceID:   d.InstanceId,
+			DeviceName: d.Description,
+			Status:     d.GetStatus(),
 		})
 	}
 
