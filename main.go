@@ -1,23 +1,14 @@
 package main
 
 import (
-	"fmt"
-	"os/exec"
-	"strings"
-
+	"github.com/ebiyu/wslusb/usbipd"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
 
-const (
-	NotShared = iota
-	Shared
-	Attached
-)
-
 type UIState struct {
-	AttachedItems *[]Device
-	DetachedItems *[]Device
+	AttachedItems *[]usbipd.Device
+	DetachedItems *[]usbipd.Device
 }
 
 func main() {
@@ -43,28 +34,28 @@ func main() {
 	flex.SetTitle("USBIPD")
 
 	uiState := UIState{
-		AttachedItems: &[]Device{},
-		DetachedItems: &[]Device{},
+		AttachedItems: &[]usbipd.Device{},
+		DetachedItems: &[]usbipd.Device{},
 	}
 
 	updateDeviceList := func() {
 		attachedTable.Clear()
 		detachedTable.Clear()
 
-		items, err := getDevices()
+		items, err := usbipd.GetDevices()
 		if err != nil {
 			panic(err)
 		}
 
-		attachedItems := []Device{}
+		attachedItems := []usbipd.Device{}
 		for _, v := range items {
-			if v.Status == Attached {
+			if v.Status == usbipd.Attached {
 				attachedItems = append(attachedItems, v)
 			}
 		}
-		detachedItems := []Device{}
+		detachedItems := []usbipd.Device{}
 		for _, v := range items {
-			if v.Status != Attached {
+			if v.Status != usbipd.Attached {
 				detachedItems = append(detachedItems, v)
 			}
 		}
@@ -137,14 +128,14 @@ func main() {
 
 	detachedTable.SetSelectedFunc(func(row, column int) {
 		device := (*uiState.DetachedItems)[row-1]
-		if device.Status == NotShared {
-			err := bindDevice(device.BusID)
+		if device.Status == usbipd.NotShared {
+			err := usbipd.BindDevice(device.BusID)
 			if err != nil {
 				panic(err)
 			}
 		}
 
-		err := attachDevice(device.BusID)
+		err := usbipd.AttachDevice(device.BusID)
 		if err != nil {
 			panic(err)
 		}
@@ -154,7 +145,7 @@ func main() {
 
 	attachedTable.SetSelectedFunc(func(row, column int) {
 		device := (*uiState.AttachedItems)[row-1]
-		err := detachDevice(device.BusID)
+		err := usbipd.DetachDevice(device.BusID)
 		if err != nil {
 			panic(err)
 		}
@@ -168,93 +159,4 @@ func main() {
 		panic(err)
 	}
 
-}
-
-type Device struct {
-	BusID      string
-	DeviceID   string
-	DeviceName string
-	Status     int
-}
-
-func getDevices() ([]Device, error) {
-	cmd := exec.Command("usbipd.exe", "list")
-	output, err := cmd.Output()
-	if err != nil {
-		return []Device{}, err
-	}
-
-	// make output list
-	strOutput := string(output)
-	strOutputList := strings.Split(strOutput, "\n")
-	for i, v := range strOutputList {
-		strOutputList[i] = strings.TrimSpace(v)
-	}
-
-	// Parse the output
-	begnRow := -1
-	endRow := -1
-
-	for i, v := range strOutputList {
-		if v == "Connected:" {
-			begnRow = i + 2
-		}
-		if v == "Persisted:" {
-			endRow = i
-		}
-	}
-	if begnRow == -1 || endRow == -1 {
-		return []Device{}, fmt.Errorf("Could not find the beginning or end of the device list")
-	}
-
-	items := []Device{}
-	for _, v := range strOutputList[begnRow:endRow] {
-		cols := strings.Fields(v)
-		if len(cols) < 3 {
-			continue
-		}
-		busid, device, remainder := cols[0], cols[1], cols[2:]
-		status := NotShared
-		if remainder[len(remainder)-1] == "Shared" {
-			status = Shared
-		} else if remainder[len(remainder)-1] == "Attached" {
-			status = Attached
-		}
-		deviceName := strings.Join(remainder[:len(remainder)-1], " ")
-		items = append(items, Device{
-			BusID:      busid,
-			DeviceID:   device,
-			DeviceName: deviceName,
-			Status:     status,
-		})
-	}
-
-	return items, nil
-}
-
-func bindDevice(busid string) error {
-	cmd := exec.Command("usbipd.exe", "bind", "--busid", busid)
-	_, err := cmd.Output()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func attachDevice(busid string) error {
-	cmd := exec.Command("usbipd.exe", "attach", "--wsl", "--busid", busid)
-	_, err := cmd.Output()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func detachDevice(busid string) error {
-	cmd := exec.Command("usbipd.exe", "detach", "--busid", busid)
-	_, err := cmd.Output()
-	if err != nil {
-		return err
-	}
-	return nil
 }
