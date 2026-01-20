@@ -62,12 +62,18 @@ func main() {
 		}
 
 		detachedTable.SetCell(0, 0, tview.NewTableCell("BusID").SetSelectable(false))
-		detachedTable.SetCell(0, 1, tview.NewTableCell("DeviceID").SetSelectable(false))
-		detachedTable.SetCell(0, 2, tview.NewTableCell("DeviceName").SetSelectable(false))
+		detachedTable.SetCell(0, 1, tview.NewTableCell("Status").SetSelectable(false))
+		detachedTable.SetCell(0, 2, tview.NewTableCell("DeviceID").SetSelectable(false))
+		detachedTable.SetCell(0, 3, tview.NewTableCell("DeviceName").SetSelectable(false))
 		for i, v := range detachedItems {
+			statusText := "Not Shared"
+			if v.Status == usbipd.Shared {
+				statusText = "Shared"
+			}
 			detachedTable.SetCell(i+1, 0, tview.NewTableCell(v.BusID))
-			detachedTable.SetCell(i+1, 1, tview.NewTableCell(v.DeviceID))
-			detachedTable.SetCell(i+1, 2, tview.NewTableCell(v.DeviceName))
+			detachedTable.SetCell(i+1, 1, tview.NewTableCell(statusText))
+			detachedTable.SetCell(i+1, 2, tview.NewTableCell(v.DeviceID))
+			detachedTable.SetCell(i+1, 3, tview.NewTableCell(v.DeviceName))
 		}
 
 		attachedTable.SetCell(0, 0, tview.NewTableCell("BusID").SetSelectable(false))
