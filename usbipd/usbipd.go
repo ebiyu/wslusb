@@ -2,7 +2,10 @@ package usbipd
 
 import (
 	"encoding/json"
+	"fmt"
 	"os/exec"
+
+	"github.com/ebiyu/wslusb/elevate"
 )
 
 const (
@@ -72,10 +75,21 @@ func GetDevices() ([]Device, error) {
 }
 
 func BindDevice(busid string) error {
-	cmd := exec.Command("usbipd.exe", "bind", "--busid", busid)
-	_, err := cmd.Output()
+	if elevate.IsElevated() {
+		// Already elevated, execute directly
+		cmd := exec.Command("usbipd.exe", "bind", "--busid", busid)
+		_, err := cmd.Output()
+		return err
+	}
+
+	// Not elevated, use UAC
+	args := fmt.Sprintf("bind --busid %s", busid)
+	exitCode, err := elevate.RunAsAdminWait("usbipd.exe", args)
 	if err != nil {
 		return err
+	}
+	if exitCode != 0 {
+		return fmt.Errorf("usbipd.exe exited with code %d", exitCode)
 	}
 	return nil
 }
